@@ -4,71 +4,50 @@ import { useState, useEffect, useCallback } from "react";
 import { SwipeCard } from "./SwipeCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { Chart } from "./Chart";
-import { Loader2, TrendingUp, TrendingDown, RefreshCw, Trophy, Flame, Zap, Crown } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, RefreshCw, Flame, Zap, Crown, X } from "lucide-react";
 import { NameModal } from "./NameModal";
-import Link from "next/link";
 import confetti from "canvas-confetti";
 
 // Celebratory messages based on streak
 const getStreakMessage = (streak: number): { text: string; icon: React.ReactNode; color: string } => {
-  if (streak >= 10) return { text: "LEGENDARY! 🔥", icon: <Crown className="w-5 h-5" />, color: "text-yellow-400" };
-  if (streak >= 7) return { text: "ON FIRE!", icon: <Flame className="w-5 h-5" />, color: "text-orange-500" };
-  if (streak >= 5) return { text: "UNSTOPPABLE!", icon: <Zap className="w-5 h-5" />, color: "text-blue-400" };
-  if (streak >= 3) return { text: "HOT STREAK!", icon: <Flame className="w-5 h-5" />, color: "text-red-500" };
+  if (streak >= 10) return { text: "LEGENDARY! 🔥", icon: <Crown className="w-4 h-4" />, color: "text-yellow-400" };
+  if (streak >= 7) return { text: "ON FIRE!", icon: <Flame className="w-4 h-4" />, color: "text-orange-500" };
+  if (streak >= 5) return { text: "UNSTOPPABLE!", icon: <Zap className="w-4 h-4" />, color: "text-blue-400" };
+  if (streak >= 3) return { text: "HOT STREAK!", icon: <Flame className="w-4 h-4" />, color: "text-red-500" };
   return { text: "Nice!", icon: null, color: "text-green-500" };
 };
 
-// Fire confetti for wins
+// Check if on mobile
+const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 768;
+
+// Fire confetti for wins (reduced for mobile)
 const fireConfetti = (intensity: number = 1) => {
-  const count = 100 * intensity;
-  const defaults = {
-    origin: { y: 0.7 },
-    zIndex: 9999,
-  };
+  if (isMobile()) intensity *= 0.5; // Half particles on mobile
+  
+  const count = 80 * intensity;
+  const defaults = { origin: { y: 0.7 }, zIndex: 9999 };
 
-  function fire(particleRatio: number, opts: confetti.Options) {
-    confetti({
-      ...defaults,
-      ...opts,
-      particleCount: Math.floor(count * particleRatio),
-    });
-  }
-
-  fire(0.25, { spread: 26, startVelocity: 55, colors: ['#26a69a', '#4ade80'] });
-  fire(0.2, { spread: 60, colors: ['#fbbf24', '#f59e0b'] });
-  fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#22c55e', '#10b981'] });
-  fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#eab308', '#facc15'] });
-  fire(0.1, { spread: 120, startVelocity: 45, colors: ['#84cc16', '#a3e635'] });
+  confetti({ ...defaults, particleCount: Math.floor(count * 0.4), spread: 40, startVelocity: 45, colors: ['#26a69a', '#4ade80'] });
+  confetti({ ...defaults, particleCount: Math.floor(count * 0.3), spread: 70, colors: ['#fbbf24', '#f59e0b'] });
+  confetti({ ...defaults, particleCount: Math.floor(count * 0.3), spread: 90, decay: 0.91, colors: ['#22c55e', '#10b981'] });
 };
 
-// Big celebration for streaks
+// Big celebration for streaks (simplified for mobile)
 const fireBigCelebration = () => {
-  const duration = 1500;
+  if (isMobile()) {
+    // Simpler burst on mobile
+    confetti({ particleCount: 50, spread: 100, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b', '#ea580c'], zIndex: 9999 });
+    return;
+  }
+
+  const duration = 1200;
   const end = Date.now() + duration;
 
   const frame = () => {
-    confetti({
-      particleCount: 3,
-      angle: 60,
-      spread: 55,
-      origin: { x: 0 },
-      colors: ['#fbbf24', '#f59e0b', '#ea580c'],
-      zIndex: 9999,
-    });
-    confetti({
-      particleCount: 3,
-      angle: 120,
-      spread: 55,
-      origin: { x: 1 },
-      colors: ['#fbbf24', '#f59e0b', '#ea580c'],
-      zIndex: 9999,
-    });
-
-    if (Date.now() < end) {
-      requestAnimationFrame(frame);
-    }
+    confetti({ particleCount: 2, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#fbbf24', '#f59e0b'], zIndex: 9999 });
+    confetti({ particleCount: 2, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#fbbf24', '#f59e0b'], zIndex: 9999 });
+    if (Date.now() < end) requestAnimationFrame(frame);
   };
-
   frame();
 };
 
@@ -82,7 +61,7 @@ export const GameManager = () => {
   const [playerName, setPlayerName] = useState<string | null>(null);
   const [showNameModal, setShowNameModal] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [showStreakEffect, setShowStreakEffect] = useState(false);
+  const [showWrongShake, setShowWrongShake] = useState(false);
 
   useEffect(() => {
     const storedName = localStorage.getItem("stockTinderName");
@@ -99,21 +78,30 @@ export const GameManager = () => {
     setShowNameModal(false);
   };
 
-  const saveScore = (finalScore: number) => {
+  const saveScore = (finalStreak: number, finalScore: number) => {
     if (!playerName) return;
     
-    const currentHigh = parseInt(localStorage.getItem("stockTinderHighScore") || "0");
-    if (finalScore > currentHigh) {
+    // Update High Streak
+    const currentHighStreak = parseInt(localStorage.getItem("stockTinderHighStreak") || "0");
+    if (finalStreak > currentHighStreak) {
+      localStorage.setItem("stockTinderHighStreak", finalStreak.toString());
+    }
+    
+    // Update High Score (total correct)
+    const currentHighScore = parseInt(localStorage.getItem("stockTinderHighScore") || "0");
+    if (finalScore > currentHighScore) {
       localStorage.setItem("stockTinderHighScore", finalScore.toString());
     }
 
+    // Add to History
     const history = JSON.parse(localStorage.getItem("stockTinderHistory") || "[]");
     history.unshift({
       name: playerName,
+      streak: finalStreak,
       score: finalScore,
       date: new Date().toISOString()
     });
-    localStorage.setItem("stockTinderHistory", JSON.stringify(history));
+    localStorage.setItem("stockTinderHistory", JSON.stringify(history.slice(0, 20))); // Keep last 20
   };
 
   const fetchStock = useCallback(async () => {
@@ -121,7 +109,7 @@ export const GameManager = () => {
     setGameState("playing");
     setUserChoice(null);
     setIsCorrect(false);
-    setShowStreakEffect(false);
+    setShowWrongShake(false);
     try {
       const res = await fetch("/api/stocks");
       const data = await res.json();
@@ -150,19 +138,25 @@ export const GameManager = () => {
 
     if (correct) {
       const newStreak = streak + 1;
-      setScore((s) => s + 1);
+      const newScore = score + 1;
+      setScore(newScore);
       setStreak(newStreak);
       
-      // Trigger confetti based on streak
       if (newStreak >= 5) {
         fireBigCelebration();
-        setShowStreakEffect(true);
       } else {
-        fireConfetti(1 + newStreak * 0.2);
+        fireConfetti(1 + newStreak * 0.15);
       }
     } else {
-      saveScore(streak);
+      // Wrong answer - shake and save
+      setShowWrongShake(true);
+      saveScore(streak, score);
       setStreak(0);
+      
+      // Vibrate on mobile if supported
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+      }
     }
   };
 
@@ -172,9 +166,9 @@ export const GameManager = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen text-white">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-        <p className="text-lg font-light animate-pulse">Finding a setup...</p>
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-white">
+        <Loader2 className="w-10 h-10 animate-spin text-primary mb-3" />
+        <p className="text-base font-light animate-pulse">Finding a setup...</p>
       </div>
     );
   }
@@ -184,36 +178,27 @@ export const GameManager = () => {
   const streakInfo = getStreakMessage(streak);
 
   return (
-    <div className="relative w-full max-w-md mx-auto h-[600px] flex flex-col items-center justify-center">
-      {/* Header Stats */}
-      <div className="absolute -top-16 w-full flex justify-between px-4 text-white">
+    <div className="relative w-full max-w-md mx-auto px-2 sm:px-0">
+      {/* Header Stats - More compact on mobile */}
+      <div className="flex justify-between items-center mb-4 px-2">
         <div className="flex flex-col items-center">
-          <span className="text-xs text-gray-400 uppercase tracking-wider">Score</span>
-          <span className="text-2xl font-bold">{score}</span>
+          <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">Score</span>
+          <span className="text-xl sm:text-2xl font-bold text-white">{score}</span>
         </div>
         
         {/* Streak with fire effect */}
         <motion.div 
           className="flex flex-col items-center relative"
-          animate={streak >= 3 ? { scale: [1, 1.1, 1] } : {}}
-          transition={{ repeat: Infinity, duration: 0.5 }}
+          animate={streak >= 3 && !isMobile() ? { scale: [1, 1.05, 1] } : {}}
+          transition={{ repeat: Infinity, duration: 0.6 }}
         >
-          <span className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-1">
+          <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider flex items-center gap-1">
             Streak
-            {streak >= 3 && <Flame className="w-3 h-3 text-orange-500 animate-pulse" />}
+            {streak >= 3 && <Flame className="w-3 h-3 text-orange-500" />}
           </span>
-          <span className={`text-2xl font-bold ${streak >= 5 ? 'text-orange-500' : streak >= 3 ? 'text-yellow-500' : 'text-primary'}`}>
+          <span className={`text-xl sm:text-2xl font-bold ${streak >= 5 ? 'text-orange-500' : streak >= 3 ? 'text-yellow-500' : 'text-primary'}`}>
             {streak}
           </span>
-          
-          {/* Fire glow effect */}
-          {streak >= 5 && (
-            <motion.div 
-              className="absolute -inset-4 bg-orange-500/20 rounded-full blur-xl -z-10"
-              animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 1 }}
-            />
-          )}
         </motion.div>
       </div>
 
@@ -223,107 +208,97 @@ export const GameManager = () => {
         ) : (
           <motion.div
             key="result"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="w-full h-full bg-card border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1,
+              x: showWrongShake ? [0, -10, 10, -10, 10, 0] : 0
+            }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ 
+              type: "spring", 
+              stiffness: 300, 
+              damping: 25,
+              x: { duration: 0.4 }
+            }}
+            className={`w-full bg-card border rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col ${
+              showWrongShake ? 'border-red-500/50' : 'border-white/10'
+            }`}
           >
-            {/* Streak Effect Overlay */}
-            {showStreakEffect && (
-              <motion.div 
-                className="absolute inset-0 pointer-events-none z-20"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-t from-orange-500/20 via-transparent to-yellow-500/10" />
-              </motion.div>
-            )}
-
-            <div className="p-6 flex-grow flex flex-col">
-              <div className="flex justify-between items-start mb-4">
+            <div className="p-4 sm:p-6 flex-grow flex flex-col">
+              <div className="flex justify-between items-start mb-3 sm:mb-4">
                 <div>
-                  <h2 className="text-3xl font-bold text-white">{stockData.symbol.replace('.NS', '')}</h2>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-white">{stockData.symbol.replace('.NS', '')}</h2>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-sm font-bold px-2 py-0.5 rounded ${stockData.percentChange > 0 ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                    <span className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded ${stockData.percentChange > 0 ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
                       {stockData.percentChange > 0 ? '+' : ''}{stockData.percentChange.toFixed(2)}%
                     </span>
-                    <span className="text-xs text-gray-400">Next 7 Days</span>
+                    <span className="text-[10px] sm:text-xs text-gray-400">Next 7 Days</span>
                   </div>
                 </div>
                 <motion.div 
-                  className={`p-3 rounded-full ${isCorrect ? 'bg-green-500/20' : 'bg-red-500/20'}`}
+                  className={`p-2 sm:p-3 rounded-full ${isCorrect ? 'bg-green-500/20' : 'bg-red-500/20'}`}
                   initial={{ scale: 0 }}
-                  animate={{ scale: 1, rotate: isCorrect ? [0, 10, -10, 0] : [0, -5, 5, 0] }}
-                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                  animate={{ scale: 1 }}
                 >
                   {isCorrect ? (
-                    <TrendingUp className="w-6 h-6 text-green-500" />
+                    <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
                   ) : (
-                    <TrendingDown className="w-6 h-6 text-red-500" />
+                    <X className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
                   )}
                 </motion.div>
               </div>
 
-              <div className="flex-grow relative bg-black/20 rounded-xl overflow-hidden mb-4">
+              <div className="flex-grow relative bg-black/20 rounded-xl overflow-hidden mb-3 sm:mb-4 min-h-[200px] sm:min-h-[250px]">
                 <Chart 
                   data={[...stockData.visibleData, ...stockData.futureData]} 
-                  colors={{
-                    backgroundColor: 'transparent',
-                    textColor: '#9ca3af',
-                  }}
+                  colors={{ backgroundColor: 'transparent', textColor: '#9ca3af' }}
                 />
               </div>
 
               <div className="text-center">
-                {/* Result Message */}
                 <motion.div
-                  initial={{ scale: 0.5, opacity: 0 }}
+                  initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 10 }}
                 >
-                  <h3 className={`text-2xl font-bold mb-1 ${isCorrect ? 'text-green-500' : 'text-red-500'}`}>
-                    {isCorrect ? 'Correct!' : 'Wrong!'}
+                  <h3 className={`text-xl sm:text-2xl font-bold mb-1 ${isCorrect ? 'text-green-500' : 'text-red-500'}`}>
+                    {isCorrect ? '✓ Correct!' : '✗ Wrong!'}
                   </h3>
                   
-                  {/* Streak Message */}
                   {isCorrect && streak >= 2 && (
                     <motion.div 
-                      className={`flex items-center justify-center gap-2 ${streakInfo.color} font-bold text-lg mb-3`}
-                      initial={{ y: 20, opacity: 0 }}
+                      className={`flex items-center justify-center gap-1 ${streakInfo.color} font-bold text-sm sm:text-lg mb-2`}
+                      initial={{ y: 10, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
-                      transition={{ delay: 0.2 }}
+                      transition={{ delay: 0.15 }}
                     >
                       {streakInfo.icon}
                       <span>{streakInfo.text}</span>
                       {streakInfo.icon}
                     </motion.div>
                   )}
+                  
+                  {!isCorrect && (
+                    <p className="text-gray-400 text-xs sm:text-sm mb-2">
+                      Streak lost! Start fresh.
+                    </p>
+                  )}
                 </motion.div>
 
-                <p className="text-gray-400 text-sm mb-6">
+                <p className="text-gray-400 text-xs sm:text-sm mb-4 sm:mb-6">
                   {isCorrect 
-                    ? streak >= 5 
-                      ? "You're reading the market like a pro!" 
-                      : "Great read! You spotted the trend."
+                    ? streak >= 5 ? "You're reading the market like a pro!" : "Great read!"
                     : "The market had other plans."}
                 </p>
                 
-                <div className="flex gap-3">
-                  <Link href="/leaderboard" className="flex-1 py-4 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors flex items-center justify-center gap-2">
-                    <Trophy className="w-5 h-5" />
-                    Leaders
-                  </Link>
-                  <motion.button
-                    onClick={fetchStock}
-                    className="flex-[2] py-4 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                    Next Chart
-                  </motion.button>
-                </div>
+                <motion.button
+                  onClick={fetchStock}
+                  className="w-full py-3 sm:py-4 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Next Chart
+                </motion.button>
               </div>
             </div>
           </motion.div>
