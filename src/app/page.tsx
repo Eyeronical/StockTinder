@@ -22,7 +22,7 @@ export default function Home() {
         </Link>
       </div>
 
-      <div className="text-center mb-6 sm:mb-8 z-10">
+      <div className="text-center mb-6 z-10">
         <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
           Stock<span className="text-primary">Tinder</span>
         </h1>
