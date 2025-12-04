@@ -9,9 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.25",
+    "lightweight-charts": "^5.0.9",
+    "lucide-react": "^0.555.0",
     "next": "16.0.7",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "tailwind-merge": "^3.4.0",
+    "yahoo-finance2": "^3.10.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
